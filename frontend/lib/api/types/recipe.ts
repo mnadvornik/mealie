@@ -509,15 +509,18 @@ export interface SaveIngredientUnit {
 export interface ScrapeRecipe {
   includeTags?: boolean;
   includeCategories?: boolean;
+  translateLanguage?: string | null;
   url: string;
 }
 export interface ScrapeRecipeBase {
   includeTags?: boolean;
   includeCategories?: boolean;
+  translateLanguage?: string | null;
 }
 export interface ScrapeRecipeData {
   includeTags?: boolean;
   includeCategories?: boolean;
+  translateLanguage?: string | null;
   data: string;
   url?: string | null;
 }

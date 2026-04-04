@@ -21,7 +21,7 @@ from mealie.repos.all_repositories import get_repositories
 from mealie.repos.repository_factory import AllRepositories
 from mealie.repos.repository_generic import RepositoryGeneric
 from mealie.schema.household.household import HouseholdInDB, HouseholdRecipeUpdate
-from mealie.schema.openai.recipe import OpenAIRecipe
+from mealie.schema.openai.recipe import OpenAIRecipe, OpenAIRecipeIngredient, OpenAIRecipeInstruction, OpenAIRecipeNotes
 from mealie.schema.recipe.recipe import CreateRecipe, Recipe, create_recipe_slug
 from mealie.schema.recipe.recipe_ingredient import RecipeIngredient
 from mealie.schema.recipe.recipe_notes import RecipeNote
@@ -231,6 +231,11 @@ class RecipeService(RecipeServiceBase):
 
         self.repos.recipe_timeline_events.create(timeline_event_data)
         return new_recipe
+
+    async def translate_recipe(self, recipe: Recipe, translate_language: str) -> Recipe:
+        openai_recipe_service = OpenAIRecipeService(self.repos, self.user, self.household, self.translator)
+        recipe_data = await openai_recipe_service.translate_recipe(recipe, translate_language)
+        return cleaner.clean(recipe_data, self.translator)
 
     def _transform_user_id(self, user_id: str) -> str:
         query = self.repos.users.get_one(user_id)
@@ -582,6 +587,32 @@ class RecipeService(RecipeServiceBase):
 
 
 class OpenAIRecipeService(RecipeServiceBase):
+    def _to_openai_recipe(self, recipe: Recipe) -> OpenAIRecipe:
+        return OpenAIRecipe(
+            name=recipe.name or "Untitled",
+            description=recipe.description,
+            recipe_yield=recipe.recipe_yield,
+            total_time=recipe.total_time,
+            prep_time=recipe.prep_time,
+            perform_time=recipe.perform_time,
+            ingredients=[
+                OpenAIRecipeIngredient(
+                    title=ingredient.title,
+                    text=ingredient.note or ingredient.original_text or ingredient.display,
+                )
+                for ingredient in recipe.recipe_ingredient or []
+                if ingredient.note or ingredient.original_text or ingredient.display
+            ],
+            instructions=[
+                OpenAIRecipeInstruction(title=instruction.title, text=instruction.text)
+                for instruction in recipe.recipe_instructions or []
+                if instruction.text
+            ],
+            notes=[
+                OpenAIRecipeNotes(title=note.title or None, text=note.text) for note in recipe.notes or [] if note.text
+            ],
+        )
+
     def _convert_recipe(self, openai_recipe: OpenAIRecipe) -> Recipe:
         return Recipe(
             user_id=self.user.id,
@@ -606,6 +637,54 @@ class OpenAIRecipeService(RecipeServiceBase):
             ],
             notes=[RecipeNote(title=note.title or "", text=note.text) for note in openai_recipe.notes if note.text],
         )
+
+    async def translate_recipe(self, recipe: Recipe, translate_language: str) -> Recipe:
+        settings = get_app_settings()
+        if not settings.OPENAI_ENABLED:
+            raise ValueError("OpenAI services are not available")
+
+        openai_service = OpenAIService()
+        prompt = openai_service.get_prompt("recipes.translate-recipe")
+        source_recipe = self._to_openai_recipe(recipe)
+        message = dedent(
+            f"""
+            Please translate the provided recipe to {translate_language}.
+
+            Recipe JSON:
+            {source_recipe.model_dump_json(exclude_none=True)}
+            """
+        ).strip()
+
+        try:
+            response = await openai_service.get_response(prompt, message, response_schema=OpenAIRecipe)
+            if not response:
+                raise ValueError("Received empty response from OpenAI")
+        except Exception as e:
+            raise Exception("Failed to call OpenAI services") from e
+
+        translated_recipe = recipe.model_copy(deep=True)
+        translated_recipe.name = response.name
+        translated_recipe.slug = create_recipe_slug(response.name)
+        translated_recipe.description = response.description
+        translated_recipe.recipe_yield = response.recipe_yield
+        translated_recipe.total_time = response.total_time
+        translated_recipe.prep_time = response.prep_time
+        translated_recipe.perform_time = response.perform_time
+        translated_recipe.recipe_ingredient = [
+            RecipeIngredient(title=ingredient.title, note=ingredient.text)
+            for ingredient in response.ingredients
+            if ingredient.text
+        ]
+        translated_recipe.recipe_instructions = [
+            RecipeStep(title=instruction.title, text=instruction.text)
+            for instruction in response.instructions
+            if instruction.text
+        ]
+        translated_recipe.notes = [
+            RecipeNote(title=note.title or "", text=note.text) for note in response.notes if note.text
+        ]
+
+        return translated_recipe
 
     async def build_recipe_from_images(self, images: list[Path], translate_language: str | None) -> Recipe:
         settings = get_app_settings()

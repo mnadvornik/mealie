@@ -74,6 +74,37 @@ def test_create_recipe_from_video(
     assert len(recipe["recipeInstructions"]) == len(openai_recipe.instructions)
 
 
+def test_create_recipe_from_video_when_html_fetch_fails(
+    api_client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+    unique_user: TestUser,
+):
+    openai_recipe = _make_openai_recipe()
+
+    async def mock_safe_scrape_html(url: str) -> str:
+        return ""
+
+    def mock_download_audio(self, temp_path: Path):
+        return {
+            "audio": temp_path / "mealie.mp3",
+            "subtitle": None,
+            "title": random_string(),
+            "description": random_string(),
+            "thumbnail_url": "https://example.com/thumbnail.jpg",
+            "transcription": random_string(),
+        }
+
+    async def mock_get_response(self, prompt, message, *args, **kwargs) -> OpenAIRecipe | None:
+        return openai_recipe
+
+    monkeypatch.setattr(recipe_scraper_module, "safe_scrape_html", mock_safe_scrape_html)
+    monkeypatch.setattr(RecipeScraperOpenAITranscription, "_download_audio", mock_download_audio)
+    monkeypatch.setattr(OpenAIService, "get_response", mock_get_response)
+
+    r = api_client.post(api_routes.recipes_create_url, json={"url": VIDEO_URL}, headers=unique_user.token)
+    assert r.status_code == 201
+
+
 def test_create_recipe_from_video_uses_subtitle_over_transcription(
     api_client: TestClient,
     monkeypatch: pytest.MonkeyPatch,

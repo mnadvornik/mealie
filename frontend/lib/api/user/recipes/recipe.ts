@@ -206,9 +206,10 @@ export class RecipeAPI extends BaseCRUDAPI<CreateRecipe, Recipe, Recipe> {
     url: string,
     includeTags: boolean,
     includeCategories: boolean,
+    translateLanguage: string | null = null,
     onProgress?: (message: string) => void,
   ): Promise<RequestResponse<string>> {
-    return this.streamRecipeCreate(routes.recipesCreateUrl, { url, includeTags, includeCategories }, onProgress);
+    return this.streamRecipeCreate(routes.recipesCreateUrl, { url, includeTags, includeCategories, translateLanguage }, onProgress);
   }
 
   async createManyByUrl(payload: CreateRecipeByUrlBulk) {

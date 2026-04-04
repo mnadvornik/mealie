@@ -223,6 +223,9 @@ class RecipeController(BaseRecipeController):
         async def run() -> None:
             try:
                 recipe, extras = await create_from_html(url, self.translator, html, on_progress=on_progress)
+                if req.translate_language:
+                    await on_progress(self.translator.t("recipe.create-progress.creating-recipe-with-ai"))
+                    recipe = await self.service.translate_recipe(recipe, req.translate_language)
                 slug = self._finish_recipe_from_web(req, recipe, extras)
                 await queue.put(
                     ServerSentEvent(

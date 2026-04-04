@@ -21,12 +21,14 @@ from slugify import slugify
 import mealie.services.scraper.recipe_scraper as recipe_scraper_module
 from mealie.db.models.recipe import RecipeModel
 from mealie.pkgs.safehttp.transport import AsyncSafeTransport
+from mealie.schema.openai.recipe import OpenAIRecipe, OpenAIRecipeIngredient, OpenAIRecipeInstruction
 from mealie.schema.cookbook.cookbook import SaveCookBook
 from mealie.schema.recipe.recipe import Recipe, RecipeCategory, RecipeSummary, RecipeTag
 from mealie.schema.recipe.recipe_category import CategorySave, TagSave
 from mealie.schema.recipe.recipe_ingredient import RecipeIngredient, SaveIngredientFood
 from mealie.schema.recipe.recipe_notes import RecipeNote
 from mealie.schema.recipe.recipe_tool import RecipeToolSave
+from mealie.services.openai import OpenAIService
 from mealie.services.recipe.recipe_data_service import RecipeDataService
 from mealie.services.scraper.recipe_scraper import DEFAULT_SCRAPER_STRATEGIES
 from tests import utils
@@ -162,6 +164,63 @@ def test_create_by_url(
 
         for tag in recipe_dict["tags"]:
             assert tag["name"] in expected_tags
+
+
+def test_create_by_url_with_translate_language(
+    api_client: TestClient,
+    unique_user: TestUser,
+    monkeypatch: MonkeyPatch,
+):
+    async def mock_safe_scrape_html(url: str) -> str:
+        return "<html></html>"
+
+    monkeypatch.setattr(recipe_scraper_module, "safe_scrape_html", mock_safe_scrape_html)
+
+    recipe_data = recipe_test_data[0]
+    for scraper_cls in DEFAULT_SCRAPER_STRATEGIES:
+        monkeypatch.setattr(
+            scraper_cls,
+            "get_html",
+            open_graph_override(recipe_data.html_file.read_text()),
+        )
+
+    async def return_empty_response(*args, **kwargs):
+        return Response(200, content=b"")
+
+    monkeypatch.setattr(AsyncSafeTransport, "handle_async_request", return_empty_response)
+    monkeypatch.setattr(RecipeDataService, "scrape_image", lambda *_: "TEST_IMAGE")
+
+    translated_name = random_string()
+    translated_ingredient = random_string()
+    translated_instruction = random_string()
+
+    async def mock_get_response(self, prompt: str, message: str, *args, **kwargs) -> OpenAIRecipe | None:
+        assert "de-DE" in message
+        return OpenAIRecipe(
+            name=translated_name,
+            ingredients=[OpenAIRecipeIngredient(text=translated_ingredient)],
+            instructions=[OpenAIRecipeInstruction(text=translated_instruction)],
+        )
+
+    monkeypatch.setattr(OpenAIService, "get_response", mock_get_response)
+
+    response = api_client.post(
+        api_routes.recipes_create_url,
+        json={"url": recipe_data.url, "translateLanguage": "de-DE"},
+        headers=unique_user.token,
+    )
+
+    assert response.status_code == 201
+    slug = json.loads(response.text)
+
+    recipe = api_client.get(api_routes.recipes_slug(slug), headers=unique_user.token)
+
+    assert recipe.status_code == 200
+    recipe_dict: dict = json.loads(recipe.text)
+    assert recipe_dict["name"] == translated_name
+    assert recipe_dict["slug"] == slugify(translated_name)
+    assert recipe_dict["recipeIngredient"][0]["note"] == translated_ingredient
+    assert recipe_dict["recipeInstructions"][0]["text"] == translated_instruction
 
 
 @pytest.mark.parametrize("use_json", [True, False])

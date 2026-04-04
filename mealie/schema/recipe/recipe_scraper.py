@@ -11,6 +11,7 @@ class ScrapeRecipeTest(MealieModel):
 class ScrapeRecipeBase(MealieModel):
     include_tags: bool = False
     include_categories: bool = False
+    translate_language: str | None = None
 
 
 class ScrapeRecipe(ScrapeRecipeBase):
@@ -21,6 +22,7 @@ class ScrapeRecipe(ScrapeRecipeBase):
                 "url": "https://myfavoriterecipes.com/recipes",
                 "includeTags": True,
                 "includeCategories": True,
+                "translateLanguage": "en-US",
             },
         }
     )
@@ -32,3 +34,14 @@ class ScrapeRecipeData(ScrapeRecipeBase):
 
     url: str | None = None
     """Optional URL of the recipe source"""
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "data": "<html><body>Recipe HTML</body></html>",
+                "url": "https://myfavoriterecipes.com/recipes",
+                "includeTags": True,
+                "includeCategories": True,
+                "translateLanguage": "en-US",
+            },
+        }
+    )
