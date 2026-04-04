@@ -86,6 +86,8 @@ class RecipeBulkScraperService(BaseService):
             async with sem:
                 try:
                     recipe, _ = await create_from_html(url, self.translator)
+                    if recipe and urls.translate_language:
+                        recipe = await self.service.translate_recipe(recipe, urls.translate_language)
                     return recipe
                 except Exception as e:
                     self.service.logger.error(f"failed to scrape url during bulk url import {url}")

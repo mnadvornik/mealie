@@ -126,6 +126,12 @@
               hide-details
               :label="$t('recipe.set-categories-and-tags')"
             />
+            <v-checkbox
+              v-if="$appInfo.enableOpenai"
+              v-model="shouldTranslate"
+              hide-details
+              :label="$t('recipe.should-translate-description')"
+            />
           </div>
           <v-card-actions class="justify-center">
             <div style="width: 250px">
@@ -176,6 +182,7 @@ whenever(
 
 const api = useUserApi();
 const i18n = useI18n();
+const shouldTranslate = ref(true);
 
 const bulkUrls = ref([{ url: "", categories: [], tags: [] }]);
 const lockBulkImport = ref(false);
@@ -185,7 +192,12 @@ async function bulkCreate() {
     return;
   }
 
-  const { response } = await api.recipes.createManyByUrl({ imports: bulkUrls.value });
+  const { $appInfo } = useNuxtApp();
+  const translateLanguage = shouldTranslate.value && $appInfo.enableOpenai ? i18n.locale : undefined;
+  const { response } = await api.recipes.createManyByUrl({
+    imports: bulkUrls.value,
+    translateLanguage: translateLanguage?.value,
+  });
 
   if (response?.status === 202) {
     alert.success(i18n.t("recipe.bulk-import-process-has-started"));

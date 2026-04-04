@@ -107,6 +107,7 @@ class CreateRecipeBulk(BaseModel):
 
 class CreateRecipeByUrlBulk(BaseModel):
     imports: list[CreateRecipeBulk]
+    translate_language: str | None = Field(None, alias="translateLanguage")
 
 
 class CreateRecipe(MealieModel):

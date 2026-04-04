@@ -81,6 +81,13 @@
           hide-details
           :label="$t('recipe.parse-recipe-ingredients-after-import')"
         />
+        <v-checkbox
+          v-if="$appInfo.enableOpenai"
+          v-model="shouldTranslate"
+          color="primary"
+          hide-details
+          :label="$t('recipe.should-translate-description')"
+        />
       </v-card-text>
       <v-card-actions class="justify-center">
         <div style="width: 100%" class="text-center">
@@ -118,6 +125,7 @@ const state = reactive({
 });
 const auth = useMealieAuth();
 const route = useRoute();
+const i18n = useI18n();
 const groupSlug = computed(() => route.params.groupSlug as string || auth.user.value?.groupSlug || "");
 const domUrlForm = ref<VForm | null>(null);
 
@@ -147,6 +155,7 @@ function handleResponse(response: AxiosResponse<string> | null, refreshTags = fa
 
 const newRecipeData = ref<string | object | null>(null);
 const newRecipeUrl = ref<string | null>(null);
+const shouldTranslate = ref(true);
 
 function handleIsEditJson() {
   if (state.isEditJSON) {
@@ -191,11 +200,14 @@ async function createFromHtmlOrJson(htmlOrJsonData: string | object | null, impo
   }
 
   state.loading = true;
+  const { $appInfo } = useNuxtApp();
+  const translateLanguage = shouldTranslate.value && $appInfo.enableOpenai ? i18n.locale : undefined;
   const { response } = await api.recipes.createOneByHtmlOrJson(
     dataString,
     importKeywordsAsTags,
     importCategories,
     url,
+    translateLanguage?.value,
     (message: string) => createStatus.value = message,
   );
   createStatus.value = null;

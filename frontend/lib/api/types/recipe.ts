@@ -113,6 +113,7 @@ export interface RecipeTag {
 }
 export interface CreateRecipeByUrlBulk {
   imports: CreateRecipeBulk[];
+  translateLanguage?: string | null;
 }
 export interface DeleteRecipes {
   recipes: string[];
