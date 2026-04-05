@@ -22,3 +22,4 @@ For more information on what configuration options are available, check out the 
 - When importing a recipe via URL, if the default recipe scraper is unable to read the recipe data from a webpage, the webpage contents will be parsed by OpenAI (:octicons-tag-24: v1.9.0)
 - You can import an image of a written recipe, which is sent to OpenAI and imported into Mealie. The recipe can be hand-written or typed, as long as the text is in the picture. You can also optionally have OpenAI translate the recipe into your own language (:octicons-tag-24: v1.12.0)
 - You can import a recipe via a video URL (e.g., a YouTube link). The video is transcribed using OpenAI's Whisper model, and the transcription is parsed into a recipe (:octicons-tag-24: v3.13.0)
+- Recipes can be translated into your own language while importing from URL, bulk URL or HTML/JSON when OpenAI is enabled

@@ -4,6 +4,9 @@
 
 Recipes can be imported in bulk from a file containing a list of URLs. This can be done using the following bash or python scripts with the `list` file containing one URL per line.
 
+!!! tip
+    If you want Mealie to translate imported recipes, include `translateLanguage` in the request body with a locale such as `en-US`. This requires Mealie's OpenAI integration to be configured.
+
 #### Bash
 ```bash
 #!/bin/bash
@@ -19,17 +22,22 @@ function authentication () {
 }
 
 function import_from_file () {
+  imports=""
+
   while IFS= read -r line
   do
     echo $line
-    curl -X 'POST' \
-      "$3/api/recipes/create/url" \
-      -H "Authorization: Bearer $2" \
-      -H 'accept: application/json' \
-      -H 'Content-Type: application/json' \
-      -d '{"url": "'$line'" }'
-    echo
+    [ -n "$imports" ] && imports="$imports,"
+    imports="$imports{\"url\":\"$line\"}"
   done < "$1"
+
+  curl -X 'POST' \
+    "$3/api/recipes/create/url/bulk" \
+    -H "Authorization: Bearer $2" \
+    -H 'accept: application/json' \
+    -H 'Content-Type: application/json' \
+    -d '{"imports":['"$imports"'], "translateLanguage":"en-US"}'
+  echo
 }
 
 input="list"
@@ -69,20 +77,25 @@ def authentication(mail, password, mealie_url):
   return token
 
 def import_from_file(input_file, token, mealie_url):
+  imports = []
+
   with open(input_file) as fp:
     for l in fp:
       line = re.sub(r'(.*)\n', r'\1', l)
       print(line)
-      headers = {
-        'Authorization': "Bearer " + token,
-        'accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-      data = {
-        'url': line
-      }
-      response = requests.post(mealie_url + "/api/recipes/create/url", headers=headers, json=data)
-      print(response.text)
+      imports.append({'url': line})
+
+  headers = {
+    'Authorization': "Bearer " + token,
+    'accept': 'application/json',
+    'Content-Type': 'application/json'
+  }
+  data = {
+    'imports': imports,
+    'translateLanguage': 'en-US'
+  }
+  response = requests.post(mealie_url + "/api/recipes/create/url/bulk", headers=headers, json=data)
+  print(response.text)
 
 input_file="list"
 mail="changeme@example.com"
